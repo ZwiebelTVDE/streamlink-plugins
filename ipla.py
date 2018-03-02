@@ -5,7 +5,7 @@ from streamlink.plugin import Plugin
 from streamlink.plugin.api import http, validate
 from streamlink.stream import HTTPStream
 URL_EPISODE_INFO = u"http://getmedia.redefine.pl/vods/get_vod/?cpid=1&media_id={media_id}"
-USER_AGENT = "mipla/23"
+USER_AGENT = "ipla/344 (Windows NT 6.1)"
 _ipla_protocol_re = re.compile(r"ipla://[^|]+\|(?P<media_id>\w+)")
 _url_re = re.compile(r"(?:https?:\/\/)?(?:www.)?ipla\.tv/.*")
 _playlist_schema = validate.Schema({

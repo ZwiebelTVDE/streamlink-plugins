@@ -17,21 +17,43 @@ platforms = [
         'platform': 'ConnectedTV',
         'terminal': 'Panasonic',
         'authKey': '064fda5ab26dc1dd936f5c6e84b7d3c2',
+        'userAgent': 'Mozilla/5.0 (Linux; U; Android 2.3.4; en-us; Kindle Fire Build/GINGERBREAD) AppleWebKit/533.1 (KHTML, like Gecko) Version/4.0 Mobile Safari/533.1',
         'apiVer': '3.1',
         'encrypt': False
     }, {
         'platform': 'Mobile',
         'terminal': 'Android',
         'authKey': 'b4bc971840de63d105b3166403aa1bea',
+        'userAgent': 'Apache-HttpClient/UNAVAILABLE (java 1.4)',
         'apiVer': '3.0',
+        'encrypt': True
+    }, {
+        'platform': 'ConnectedTV',
+        'terminal': 'Samsung2',
+        'authKey': '453198a80ccc99e8485794789292f061',
+        'userAgent': 'Mozilla/5.0 (SmartHub; SMART-TV; U; Linux/SmartTV; Maple2012) AppleWebKit/534.7 (KHTML, like Gecko) SmartTV Safari/534.7',
+        'api': '3.6',
+        'encrypt': True
+    }, {
+        'platform': 'Mobile',
+        'terminal': 'Android',
+        'authKey': 'b4bc971840de63d105b3166403aa1bea',
+        'userAgent': 'Apache-HttpClient/UNAVAILABLE (java 1.4)',
+        'api': '2.0',
+        'encrypt': True
+    }, {
+        'platform': 'Mobile',
+        'terminal': 'Android',
+        'authKey': '4dc7b4f711fb9f3d53919ef94c23890c',
+        'userAgent': 'Player/3.3.4 tablet Android/4.1.1 net/wifi',
+        'api': '3.1',
         'encrypt': True
     }
 ]
 
-USER_AGENT = 'Mozilla/5.0'
-
 PLAYLIST_URL = "http://player.pl/api/?id={video_id}&platform={platform}&terminal={terminal}&format=json&v={api}&authKey={authkey}&type=episode&&m=getItem"
-_url_re = re.compile(r"^(?:https?:\/\/)?(?:www.)?player\.pl/[^\"]+,(?P<video_id>[0-9]+).html.*")
+_url_re = re.compile(
+    r"^(?:https?:\/\/)?(?:www.)?player\.pl\/[^\"]+,(?P<video_id>[0-9]+).*")
 _playlist_schema = validate.Schema(
     {
         "item": {
@@ -85,12 +107,14 @@ class TvnPlayer(Plugin):
 
         unencryptedToken = "name=%s&expire=%s\0" % (url, expire)
 
-        pkcs5_pad = lambda s: s + (16 - len(s) % 16) * chr(16 - len(s) % 16)
-        pkcs5_unpad = lambda s: s[0:-ord(s[-1])]
+        def pkcs5_pad(s): return s + (16 - len(s) % 16) * chr(16 - len(s) % 16)
+
+        def pkcs5_unpad(s): return s[0:-ord(s[-1])]
 
         unencryptedToken = pkcs5_pad(unencryptedToken)
 
-        tvncrypt = AES.new(binascii.unhexlify(key), AES.MODE_CBC, binascii.unhexlify(salt))
+        tvncrypt = AES.new(binascii.unhexlify(
+            key), AES.MODE_CBC, binascii.unhexlify(salt))
         encryptedToken = tvncrypt.encrypt(unencryptedToken)
         encryptedTokenHEX = binascii.hexlify(encryptedToken).upper()
 
@@ -115,6 +139,7 @@ class TvnPlayer(Plugin):
                                        api=platform['apiVer'],
                                        authkey=platform['authKey'])
         self.logger.debug("PLAYLIST URL: " + playlist)
+        http.headers.update({"User-Agent": platform['userAgent']})
         res = http.get(playlist)
         try:
             data = http.json(res, schema=_playlist_schema)
@@ -126,7 +151,7 @@ class TvnPlayer(Plugin):
     def _get_streams(self):
         url_match = _url_re.match(self.url)
         if url_match:
-            http.headers.update({"User-Agent": USER_AGENT})
+          
             video_id = url_match.group("video_id")
             for platform in platforms:
                 streams = self._check_platform(video_id, platform)

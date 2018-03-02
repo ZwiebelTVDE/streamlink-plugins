@@ -10,8 +10,8 @@ from streamlink.logger import LoggerModule
 
 SWF_URL = "http://showup.tv/flash/suStreamer.swf"
 RANDOM_UID = '%032x' % random.getrandbits(128)
-JSON_UID = '{"id":0,"value":["{uid}",""]}'
-JSON_CHANNEL = '{"id":2,"value":["{channel_name}"]}'
+JSON_UID = u'{"id":0,"value":["%s",""]}'
+JSON_CHANNEL = u'{"id":2,"value":["%s"]}'
 
 _url_re = re.compile(r"http(s)?://(\w+.)?showup.tv/(?P<channel>[A-Za-z0-9_-]+)")
 _websocket_url_re = re.compile(r"startChildBug\(.*'(?P<ws>[\w.]+:\d+)'\);")
@@ -34,8 +34,8 @@ class SimpleWebSocketClient():
         if ld >= 126:
             return
         head |= ld
-        p = [ struct.pack ('!H', head), data ]
-        self.socket.send(''.join (p))
+        p = [ struct.pack ('!H', head), bytes(data.encode()) ]
+        self.socket.send(b''.join(p))
             
     def recv(self):
         return self.socket.recv(1024)[2:]
@@ -50,8 +50,8 @@ class SimpleWebSocketClient():
         headers.append("Host: %s" % self.host)
         header = "\r\n".join(headers)
         header += "\r\n\r\n"
-        self.socket.send(header)
-        result = self.socket.recv(1024)
+        self.socket.send(bytes(header.encode()))
+        result = str(self.socket.recv(1024))
         return "Switching Protocols" in result
        
     def connect(self,websocket_url):
@@ -77,8 +77,8 @@ class ShowUp(Plugin):
         ws = SimpleWebSocketClient()
         if not ws.connect(websocket):
             return None
-        ws.send(JSON_UID.format(uid=RANDOM_UID))
-        ws.send(JSON_CHANNEL.format(channel_name = channel))
+        ws.send(JSON_UID % RANDOM_UID)
+        ws.send(JSON_CHANNEL % channel)
         result =  ws.recv()
         ws.close()
         data = utils.parse_json(result, schema=_schema)
