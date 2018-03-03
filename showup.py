@@ -38,7 +38,7 @@ class SimpleWebSocketClient():
         self.socket.send(b''.join(p))
             
     def recv(self):
-        return self.socket.recv(1024)[2:]
+        return (self.socket.recv(1024)[2:]).decode()
         
     def _handshake(self):
         headers = []
@@ -51,7 +51,7 @@ class SimpleWebSocketClient():
         header = "\r\n".join(headers)
         header += "\r\n\r\n"
         self.socket.send(bytes(header.encode()))
-        result = str(self.socket.recv(1024))
+        result = self.socket.recv(1024).decode()
         return "Switching Protocols" in result
        
     def connect(self,websocket_url):
