@@ -8,15 +8,15 @@ from streamlink.plugin.api import http, validate, utils
 from streamlink.stream import RTMPStream
 from streamlink.logger import LoggerModule
 
-SWF_URL = "http://showup.tv/flash/suStreamer.swf"
+SWF_URL = "https://showup.tv/flash/SmallBug.swf"
 RANDOM_UID = '%032x' % random.getrandbits(128)
 JSON_UID = u'{"id":0,"value":["%s",""]}'
 JSON_CHANNEL = u'{"id":2,"value":["%s"]}'
 
 _url_re = re.compile(r"http(s)?://(\w+.)?showup.tv/(?P<channel>[A-Za-z0-9_-]+)")
 _websocket_url_re = re.compile(r"startChildBug\(.*'(?P<ws>[\w.]+:\d+)'\);")
-_rtmp_url_re = re.compile(r"var\s+srvE\s+=\s+'(?P<rtmp>rtmp://.*[^;])';")
-_schema = validate.Schema(validate.get("value"))
+_rtmp_url_re = re.compile(r'\{"id":\d+,"value":\["joined","(?P<rtmp>.+\.showup\.tv)"\]\}')
+_channel_id_re = re.compile(r'\{"id":\d+,"value":\["(?P<id>\w+)"\]\}')
 
 class SimpleWebSocketClient():
     def __init__ (self):
@@ -37,8 +37,9 @@ class SimpleWebSocketClient():
         p = [ struct.pack ('!H', head), bytes(data.encode()) ]
         self.socket.send(b''.join(p))
             
-    def recv(self):
-        return (self.socket.recv(1024)[2:]).decode()
+    def recv(self, size):
+        return (self.socket.recv(size)[2:]).decode('utf-8','ignore')
+
         
     def _handshake(self):
         headers = []
@@ -72,27 +73,31 @@ class ShowUp(Plugin):
     @classmethod
     def can_handle_url(self, url):
         return _url_re.match(url)
-        
-    def _get_stream_id(self,channel, websocket):
+    
+    def _get_stream_id(self, data):
+        channel_id = _channel_id_re.search(data)
+        if channel_id:
+            return channel_id.group('id')
+
+    def _get_websocket_data(self,channel, websocket):
         ws = SimpleWebSocketClient()
         if not ws.connect(websocket):
             return None
         ws.send(JSON_UID % RANDOM_UID)
         ws.send(JSON_CHANNEL % channel)
-        result =  ws.recv()
+        data = ws.recv(64)+ws.recv(64)
         ws.close()
-        data = utils.parse_json(result, schema=_schema)
-        return data[0]
+        return data
         
     def _get_websocket(self,html):
         websocket = _websocket_url_re.search(html)
         if websocket:
             return "ws://%s" % websocket.group("ws")
             
-    def _get_rtmp(self,html):
-        rtmp = _rtmp_url_re.search(html)
+    def _get_rtmp(self,data):
+        rtmp = _rtmp_url_re.search(data)
         if rtmp:
-            return rtmp.group("rtmp")
+            return "rtmp://{0}:1935/webrtc".format(rtmp.group("rtmp"))
         
     def _get_streams(self):
         url_match = _url_re.match(self.url)
@@ -101,12 +106,15 @@ class ShowUp(Plugin):
         http.parse_cookies('accept_rules=true')
         page = http.get(self.url)
         websocket = self._get_websocket(page.text)
-        rtmp = self._get_rtmp(page.text)
-        stream_id = self._get_stream_id(channel,websocket)
+        data = self._get_websocket_data(channel, websocket)
+        rtmp = self._get_rtmp(data)
+        stream_id = self._get_stream_id(data)
         self.logger.debug(u'Channel name: %s' % channel)
         self.logger.debug(u'WebSocket: %s' % websocket)
         self.logger.debug(u'Stream ID: %s' % stream_id)
         self.logger.debug(u'RTMP Url: %s' % "{0}/{1}".format(rtmp, stream_id))
+        if rtmp is None:
+            return None
         stream = RTMPStream(self.session, {
             "rtmp": "{0}/{1}".format(rtmp, stream_id),
             "pageUrl": self.url,
