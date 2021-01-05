@@ -5,11 +5,12 @@ import re
 import base64
 import binascii
 import time
+import requests
 
 from hashlib import sha1
 from Crypto.Cipher import AES
 from streamlink.plugin import Plugin
-from streamlink.plugin.api import http, validate
+from streamlink.plugin.api import validate
 from streamlink.stream import HTTPStream
 
 platforms = [
@@ -139,10 +140,15 @@ class TvnPlayer(Plugin):
                                        api=platform['apiVer'],
                                        authkey=platform['authKey'])
         self.logger.debug("PLAYLIST URL: " + playlist)
-        http.headers.update({"User-Agent": platform['userAgent']})
-        res = http.get(playlist)
+        headers = {
+            "User-Agent": platform['userAgent']
+        }
+        res = requests.get(playlist, headers=headers)
+        json = str(res.json()).replace("\'", "\"")
+        json = json.replace("True", "true")
+        json = json.replace("False", "false")
         try:
-            data = http.json(res, schema=_playlist_schema)
+            data = http.json(json, schema=_playlist_schema)
         except Exception as ex:
             self.logger.debug(ex.message)
             return None
